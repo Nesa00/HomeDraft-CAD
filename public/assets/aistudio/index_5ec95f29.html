@@ -1,0 +1,944 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive 3D House</title>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background: #87ceeb;
+        }
+
+        #info {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            padding: 12px 18px;
+            background: rgba(255,255,255,0.85);
+            border-radius: 8px;
+            color: #222;
+            z-index: 10;
+            line-height: 1.5;
+        }
+
+        #error {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: red;
+            background: white;
+            padding: 8px;
+            display: none;
+            z-index: 20;
+        }
+    </style>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+
+<body>
+
+<div id="info">
+    <strong>Interactive House</strong><br>
+    Click the door or windows to open them.<br>
+    Drag to rotate | Scroll to zoom
+</div>
+
+<div id="error"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// --------------------------------------------------
+// SCENE
+// --------------------------------------------------
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+
+const camera = new THREE.PerspectiveCamera(
+    50,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    1000
+);
+
+camera.position.set(17, 13, 22);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 1.5, 0);
+controls.enableDamping = true;
+controls.update();
+
+// --------------------------------------------------
+// LIGHTING - SUNNY MIDDAY
+// --------------------------------------------------
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x6d8b4d, 2));
+
+const sunlight = new THREE.DirectionalLight(0xffffff, 3);
+sunlight.position.set(-7, 12, 8);
+sunlight.castShadow = true;
+sunlight.shadow.mapSize.set(2048, 2048);
+sunlight.shadow.camera.left = -15;
+sunlight.shadow.camera.right = 15;
+sunlight.shadow.camera.top = 15;
+sunlight.shadow.camera.bottom = -15;
+scene.add(sunlight);
+
+// Sun visual
+const sun = new THREE.Mesh(
+    new THREE.SphereGeometry(0.8, 24, 24),
+    new THREE.MeshBasicMaterial({ color: 0xffdd55 })
+);
+sun.position.set(-9, 10, -8);
+scene.add(sun);
+
+// --------------------------------------------------
+// MATERIALS
+// --------------------------------------------------
+
+const grassMat = new THREE.MeshStandardMaterial({
+    color: 0x4caa45,
+    roughness: 1
+});
+
+const wallMat = new THREE.MeshStandardMaterial({
+    color: 0xe6d2ad,
+    roughness: 0.9
+});
+
+const roofMat = new THREE.MeshStandardMaterial({
+    color: 0x8b382c,
+    roughness: 0.9
+});
+
+const woodMat = new THREE.MeshStandardMaterial({
+    color: 0x754321,
+    roughness: 0.8
+});
+
+const frameMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.7
+});
+
+const glassMat = new THREE.MeshStandardMaterial({
+    color: 0xb9e8ff,
+    transparent: true,
+    opacity: 0.13,
+    roughness: 0.08,
+    metalness: 0,
+    side: THREE.DoubleSide,
+    depthWrite: false
+});
+
+// --------------------------------------------------
+// HELPER
+// --------------------------------------------------
+
+function addBox(name, x, y, z, sx, sy, sz, material, cast = true) {
+    const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(sx, sy, sz),
+        material
+    );
+
+    mesh.name = name;
+    mesh.position.set(x, y, z);
+    mesh.castShadow = cast;
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+
+    return mesh;
+}
+
+// --------------------------------------------------
+// GROUND
+// --------------------------------------------------
+
+addBox(
+    'Lawn',
+    0, -0.15, 0,
+    40, 0.3, 40,
+    grassMat,
+    false
+);
+
+// --------------------------------------------------
+// HOUSE WALLS
+// House width = 8
+// House depth = 6
+// Wall height = 3.2
+// Front = positive Z
+// --------------------------------------------------
+
+// Back wall
+addBox('Back wall', 0, 1.6, -3, 8.3, 3.2, 0.3, wallMat);
+
+// Left wall
+addBox('Left wall', -4, 1.6, 0, 0.3, 3.2, 6.3, wallMat);
+
+// Right wall
+addBox('Right wall', 4, 1.6, 0, 0.3, 3.2, 6.3, wallMat);
+
+// Front wall lower section.
+// Leave opening for the door.
+addBox('Front lower left', -2.325, 0.55, 3, 3.35, 1.1, 0.3, wallMat);
+addBox('Front lower right', 2.325, 0.55, 3, 3.35, 1.1, 0.3, wallMat);
+
+// Front wall middle section.
+// Leave openings for windows and door.
+const middleY = 1.7;
+const middleHeight = 1.2;
+
+addBox('Front middle left', -3.65, middleY, 3, 0.7, middleHeight, 0.3, wallMat);
+addBox('Front middle left center', -1.325, middleY, 3, 1.25, middleHeight, 0.3, wallMat);
+addBox('Front middle right center', 1.325, middleY, 3, 1.25, middleHeight, 0.3, wallMat);
+addBox('Front middle right', 3.65, middleY, 3, 0.7, middleHeight, 0.3, wallMat);
+
+// Front upper wall
+addBox('Front upper wall', 0, 2.75, 3, 8.3, 0.9, 0.3, wallMat);
+
+// Interior floor
+const floorMat = new THREE.MeshStandardMaterial({ color: 0xc5a77b });
+addBox('Interior floor', 0, 0.02, 0, 7.8, 0.08, 5.8, floorMat, false);
+
+// --------------------------------------------------
+// ROOF
+// --------------------------------------------------
+
+const roofLeft = new THREE.Mesh(
+    new THREE.BoxGeometry(5.25, 0.28, 6.8),
+    roofMat
+);
+
+roofLeft.position.set(-2.1, 4.3, 0);
+roofLeft.rotation.z = 0.55;
+roofLeft.castShadow = true;
+scene.add(roofLeft);
+
+const roofRight = new THREE.Mesh(
+    new THREE.BoxGeometry(5.25, 0.28, 6.8),
+    roofMat
+);
+
+roofRight.position.set(2.1, 4.3, 0);
+roofRight.rotation.z = -0.55;
+roofRight.castShadow = true;
+scene.add(roofRight);
+
+// --------------------------------------------------
+// GABLE END PANELS - same material as the walls
+// One triangle closes the front and one closes the back.
+// The roof ridge is raised to y=5.4.
+// --------------------------------------------------
+
+function addGableEnd(zPosition) {
+    const gableShape = new THREE.Shape();
+    gableShape.moveTo(-4, 3.2);
+    gableShape.lineTo(4, 3.2);
+    gableShape.lineTo(0, 5.4);
+    gableShape.lineTo(-4, 3.2);
+
+    const gableGeometry = new THREE.ExtrudeGeometry(gableShape, {
+        depth: 0.3,
+        bevelEnabled: false
+    });
+
+    const gable = new THREE.Mesh(gableGeometry, wallMat);
+    gable.position.z = zPosition;
+    gable.castShadow = true;
+    gable.receiveShadow = true;
+    scene.add(gable);
+}
+
+// Extrusion runs in +Z, so these positions align with each end wall.
+addGableEnd(2.85);    // Front gable
+addGableEnd(-3.15);   // Back gable
+
+
+// --------------------------------------------------
+// DOOR FRAME
+// Opening width = 1.3
+// Opening height = 2.35
+// --------------------------------------------------
+
+const frontZ = 3.22;
+
+addBox('Door left frame', -0.72, 1.2, frontZ,
+    0.14, 2.4, 0.16, frameMat);
+
+addBox('Door right frame', 0.72, 1.2, frontZ,
+    0.14, 2.4, 0.16, frameMat);
+
+addBox('Door top frame', 0, 2.4, frontZ,
+    1.58, 0.12, 0.16, frameMat);
+
+// Door hinge group: the door rotates around its left edge.
+const doorPivot = new THREE.Group();
+doorPivot.position.set(-0.65, 0, 3.32);
+scene.add(doorPivot);
+doorPivot.userData.toggle = () => {
+    doorPivot.userData.open = !doorPivot.userData.open;
+    doorPivot.userData.target = doorPivot.userData.open ? -Math.PI / 2 : 0;
+};
+doorPivot.userData.open = false;
+doorPivot.userData.target = 0;
+
+// Door panel
+const door = new THREE.Mesh(
+    new THREE.BoxGeometry(1.3, 2.34, 0.1),
+    woodMat
+);
+door.position.set(0.65, 1.17, 0);
+door.castShadow = true;
+doorPivot.add(door);
+
+// Door decorative panels
+const panelMat = new THREE.MeshStandardMaterial({ color: 0x98623b });
+
+for (let y of [0.65, 1.65]) {
+    const panel = new THREE.Mesh(
+        new THREE.BoxGeometry(0.85, 0.65, 0.025),
+        panelMat
+    );
+    panel.position.set(0.65, y, 0.065);
+    doorPivot.add(panel);
+}
+
+// Door handle
+const handle = new THREE.Mesh(
+    new THREE.SphereGeometry(0.07, 12, 12),
+    new THREE.MeshStandardMaterial({ color: 0xffd34e, metalness: 0.7 })
+);
+handle.position.set(1.12, 1.15, 0.1);
+doorPivot.add(handle);
+
+// --------------------------------------------------
+// WINDOWS
+// --------------------------------------------------
+
+function createWindow(x, width = 1.4) {
+    const y = 1.7;
+    const z = 3.21;
+    const height = 1.2;
+
+    // Fixed white window frame
+    addBox('Window frame left', x - width / 2 - 0.055, y, z,
+        0.11, height + 0.12, 0.14, frameMat);
+
+    addBox('Window frame right', x + width / 2 + 0.055, y, z,
+        0.11, height + 0.12, 0.14, frameMat);
+
+    addBox('Window frame top', x, y + height / 2 + 0.055, z,
+        width + 0.22, 0.11, 0.14, frameMat);
+
+    addBox('Window frame bottom', x, y - height / 2 - 0.055, z,
+        width + 0.22, 0.11, 0.14, frameMat);
+
+    // Two opening window panels
+    const panelWidth = width / 2 - 0.025;
+
+    function makeSash(side) {
+        const pivot = new THREE.Group();
+
+        const hingeX = x + side * width / 2;
+        pivot.position.set(hingeX, y, z + 0.08);
+        scene.add(pivot);
+
+        pivot.userData.open = false;
+        pivot.userData.target = 0;
+
+        pivot.userData.toggle = () => {
+            pivot.userData.open = !pivot.userData.open;
+            pivot.userData.target = pivot.userData.open
+                ? side * Math.PI / 2
+                : 0;
+        };
+
+        const centerOffset = -side * panelWidth / 2;
+
+        // Transparent glass
+        const glass = new THREE.Mesh(
+            new THREE.PlaneGeometry(panelWidth - 0.12, height - 0.12),
+            glassMat
+        );
+
+        glass.position.set(centerOffset, 0, 0);
+        glass.material.side = THREE.DoubleSide;
+        pivot.add(glass);
+
+        // White sash rails
+        const railMat = frameMat;
+
+        const leftRail = new THREE.Mesh(
+            new THREE.BoxGeometry(0.055, height, 0.08),
+            railMat
+        );
+        leftRail.position.set(centerOffset - panelWidth / 2, 0, 0.02);
+        pivot.add(leftRail);
+
+        const rightRail = new THREE.Mesh(
+            new THREE.BoxGeometry(0.055, height, 0.08),
+            railMat
+        );
+        rightRail.position.set(centerOffset + panelWidth / 2, 0, 0.02);
+        pivot.add(rightRail);
+
+        const topRail = new THREE.Mesh(
+            new THREE.BoxGeometry(panelWidth, 0.055, 0.08),
+            railMat
+        );
+        topRail.position.set(centerOffset, height / 2, 0.02);
+        pivot.add(topRail);
+
+        const bottomRail = new THREE.Mesh(
+            new THREE.BoxGeometry(panelWidth, 0.055, 0.08),
+            railMat
+        );
+        bottomRail.position.set(centerOffset, -height / 2, 0.02);
+        pivot.add(bottomRail);
+
+        // Center divider
+        const divider = new THREE.Mesh(
+            new THREE.BoxGeometry(0.045, height - 0.1, 0.08),
+            railMat
+        );
+        divider.position.set(centerOffset, 0, 0.02);
+        pivot.add(divider);
+
+        return pivot;
+    }
+
+    makeSash(-1);
+    makeSash(1);
+}
+
+createWindow(-2.6);
+createWindow(2.6);
+
+// --------------------------------------------------
+// SIMPLE INTERIOR FURNITURE
+// --------------------------------------------------
+
+const sofaMat = new THREE.MeshStandardMaterial({ color: 0x527b9a });
+
+addBox('Sofa seat', 0, 0.45, -1.2, 2.2, 0.45, 0.85, sofaMat);
+addBox('Sofa back', 0, 0.95, -1.55, 2.2, 0.8, 0.25, sofaMat);
+
+const tableMat = new THREE.MeshStandardMaterial({ color: 0x80552f });
+addBox('Interior table', 0, 0.55, 0.5, 1.4, 0.12, 0.9, tableMat);
+
+for (const x of [-0.55, 0.55]) {
+    for (const z of [0.2, 0.8]) {
+        addBox('Table leg', x, 0.28, z, 0.09, 0.5, 0.09, tableMat);
+    }
+}
+
+// --------------------------------------------------
+// DETAILED TREE
+// --------------------------------------------------
+
+function createTree(x, z) {
+    const treeGroup = new THREE.Group();
+    treeGroup.scale.setScalar(1.28);
+    treeGroup.position.set(x * (1 - 1.28), 0, z * (1 - 1.28));
+    const trunkMat = new THREE.MeshStandardMaterial({
+        color: 0x68401f,
+        roughness: 1
+    });
+    const branchMat = new THREE.MeshStandardMaterial({
+        color: 0x79502b,
+        roughness: 1
+    });
+    const leafMats = [
+        new THREE.MeshStandardMaterial({ color: 0x267a2c, roughness: 1 }),
+        new THREE.MeshStandardMaterial({ color: 0x318d35, roughness: 1 }),
+        new THREE.MeshStandardMaterial({ color: 0x3c9b3e, roughness: 1 })
+    ];
+
+    const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.16, 0.28, 2.5, 10),
+        trunkMat
+    );
+    trunk.position.set(x, 1.25, z);
+    trunk.castShadow = true;
+    treeGroup.add(trunk);
+
+    // Three visible branches angled out from the trunk.
+    const branchSpecs = [
+        { start: [x, 1.55, z], end: [x - 0.75, 2.55, z + 0.05] },
+        { start: [x, 1.8, z], end: [x + 0.75, 2.65, z - 0.05] },
+        { start: [x, 1.95, z], end: [x + 0.05, 2.95, z + 0.55] }
+    ];
+
+    for (const b of branchSpecs) {
+        const a = new THREE.Vector3(...b.start);
+        const c = new THREE.Vector3(...b.end);
+        const direction = new THREE.Vector3().subVectors(c, a);
+        const branch = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.055, 0.095, direction.length(), 8),
+            branchMat
+        );
+        branch.position.copy(a).add(c).multiplyScalar(0.5);
+        branch.quaternion.setFromUnitVectors(
+            new THREE.Vector3(0, 1, 0),
+            direction.normalize()
+        );
+        branch.castShadow = true;
+        treeGroup.add(branch);
+    }
+
+    // Overlapping foliage clusters give the crown a natural outline.
+    const crownClusters = [
+        [x, 3.05, z, 0.85],
+        [x - 0.65, 2.85, z + 0.08, 0.68],
+        [x + 0.62, 2.95, z - 0.08, 0.72],
+        [x + 0.05, 3.55, z + 0.15, 0.72],
+        [x - 0.35, 3.45, z - 0.48, 0.58],
+        [x + 0.48, 3.35, z + 0.48, 0.6]
+    ];
+
+    crownClusters.forEach((item, i) => {
+        const crown = new THREE.Mesh(
+            new THREE.SphereGeometry(item[3], 14, 12),
+            leafMats[i % leafMats.length]
+        );
+        crown.position.set(item[0], item[1], item[2]);
+        crown.scale.y = 0.85;
+        crown.castShadow = true;
+        treeGroup.add(crown);
+    });
+
+    // Add the completed tree to the scene while treeGroup is still in scope.
+    scene.add(treeGroup);
+}
+
+createTree(-6, -1);
+
+// --------------------------------------------------
+// BERRY BUSHES
+// --------------------------------------------------
+
+function createBerryBush(x, z, scale = 1) {
+    const bushGroup = new THREE.Group();
+    bushGroup.position.set(x, 0, z);
+    bushGroup.scale.setScalar(scale);
+    scene.add(bushGroup);
+
+    const greens = [
+        new THREE.MeshStandardMaterial({ color: 0x286b2b, roughness: 1 }),
+        new THREE.MeshStandardMaterial({ color: 0x37883a, roughness: 1 }),
+        new THREE.MeshStandardMaterial({ color: 0x469743, roughness: 1 })
+    ];
+    const berryMat = new THREE.MeshStandardMaterial({
+        color: 0xc91f32,
+        roughness: 0.35
+    });
+
+    // Several leaf masses form one rounded shrub.
+    const shrubParts = [
+        [-0.38, 0.42, 0, 0.52],
+        [0.1, 0.5, 0.12, 0.58],
+        [0.48, 0.38, -0.05, 0.48],
+        [-0.08, 0.72, -0.12, 0.48]
+    ];
+
+    shrubParts.forEach((part, i) => {
+        const foliage = new THREE.Mesh(
+            new THREE.SphereGeometry(part[3], 12, 10),
+            greens[i % greens.length]
+        );
+        foliage.position.set(part[0], part[1], part[2]);
+        foliage.scale.y = 0.8;
+        foliage.castShadow = true;
+        bushGroup.add(foliage);
+    });
+
+    // Small red berries placed on the outer surface of the foliage.
+    const berryPositions = [
+        [-0.55, 0.55, 0.18],
+        [-0.28, 0.82, 0.28],
+        [0.02, 0.58, 0.52],
+        [0.32, 0.72, 0.25],
+        [0.55, 0.48, 0.05],
+        [-0.05, 0.95, -0.25],
+        [0.42, 0.9, -0.12],
+        [-0.42, 0.38, -0.28]
+    ];
+
+    berryPositions.forEach((pos, i) => {
+        const berry = new THREE.Mesh(
+            new THREE.SphereGeometry(0.075, 10, 8),
+            berryMat
+        );
+        berry.position.set(pos[0], pos[1], pos[2]);
+        berry.castShadow = true;
+        bushGroup.add(berry);
+
+        // Tiny green stem above each berry.
+        const stem = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.012, 0.012, 0.08, 5),
+            greens[1]
+        );
+        stem.position.set(pos[0], pos[1] + 0.075, pos[2]);
+        bushGroup.add(stem);
+    });
+}
+
+// Two berry bushes beside the front of the house.
+createBerryBush(-5.0, 2.0, 1.0);
+createBerryBush(5.0, 2.1, 0.95);
+
+
+// --------------------------------------------------
+// REAR GARDEN - raised beds, vegetables and flowers
+// --------------------------------------------------
+const soilMat = new THREE.MeshStandardMaterial({ color: 0x654329, roughness: 1 });
+const bedWoodMat = new THREE.MeshStandardMaterial({ color: 0x8a5a32, roughness: 1 });
+const vegetableMats = [
+    new THREE.MeshStandardMaterial({ color: 0x3f963b, roughness: 1 }),
+    new THREE.MeshStandardMaterial({ color: 0x6aaa3d, roughness: 1 }),
+    new THREE.MeshStandardMaterial({ color: 0x2f7d35, roughness: 1 })
+];
+const flowerMats = [
+    new THREE.MeshStandardMaterial({ color: 0xe84b65, roughness: 0.8 }),
+    new THREE.MeshStandardMaterial({ color: 0xffd34e, roughness: 0.8 }),
+    new THREE.MeshStandardMaterial({ color: 0xb48be8, roughness: 0.8 })
+];
+
+function createRaisedBed(x, z, width, depth, type = 'vegetables') {
+    const group = new THREE.Group();
+    group.position.set(x, 0, z);
+    scene.add(group);
+    const h = 0.32;
+    // timber edging and dark soil
+    const soil = new THREE.Mesh(new THREE.BoxGeometry(width - 0.12, 0.12, depth - 0.12), soilMat);
+    soil.position.y = h;
+    soil.receiveShadow = true;
+    group.add(soil);
+    for (const [px, pz, sx, sz] of [
+        [0, -depth/2, width, 0.12], [0, depth/2, width, 0.12],
+        [-width/2, 0, 0.12, depth], [width/2, 0, 0.12, depth]
+    ]) {
+        const edge = new THREE.Mesh(new THREE.BoxGeometry(sx, h, sz), bedWoodMat);
+        edge.position.set(px, h/2, pz);
+        edge.castShadow = true;
+        group.add(edge);
+    }
+    // Small crop rows, or colorful flowers in the border bed.
+    const countX = Math.max(3, Math.floor(width / 0.48));
+    const countZ = Math.max(2, Math.floor(depth / 0.5));
+    for (let ix = 0; ix < countX; ix++) {
+        for (let iz = 0; iz < countZ; iz++) {
+            const px = -width/2 + 0.28 + ix * ((width - 0.56) / Math.max(1, countX - 1));
+            const pz = -depth/2 + 0.28 + iz * ((depth - 0.56) / Math.max(1, countZ - 1));
+            if (type === 'flowers') {
+                const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.025, 0.32, 6), vegetableMats[0]);
+                stem.position.set(px, h + 0.2, pz);
+                group.add(stem);
+                const bloom = new THREE.Mesh(new THREE.SphereGeometry(0.12, 9, 8), flowerMats[(ix + iz) % flowerMats.length]);
+                bloom.position.set(px, h + 0.39, pz);
+                bloom.scale.y = 0.8;
+                group.add(bloom);
+            } else {
+                const plant = new THREE.Group();
+                plant.position.set(px, h + 0.12, pz);
+                for (let k = 0; k < 3; k++) {
+                    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 7), vegetableMats[(ix + iz + k) % vegetableMats.length]);
+                    leaf.position.set((k - 1) * 0.09, k === 1 ? 0.12 : 0.04, (k % 2) * 0.08 - 0.04);
+                    leaf.scale.set(0.8, 0.65, 1.15);
+                    plant.add(leaf);
+                }
+                group.add(plant);
+            }
+        }
+    }
+}
+
+// Beds sit behind the house, with a narrow grass path between them.
+createRaisedBed(-5.2, -7.0, 3.2, 2.0, 'vegetables');
+createRaisedBed(-1.7, -7.0, 3.2, 2.0, 'vegetables');
+createRaisedBed(3.1, -7.0, 3.2, 2.0, 'vegetables');
+createRaisedBed(6.7, -7.0, 2.0, 2.0, 'flowers');
+
+// --------------------------------------------------
+// PERIMETER FENCE AND HINGED FRONT GATE
+// Plot bounds: x/z = -10 to +10. Front is +Z.
+// --------------------------------------------------
+const fenceWood = new THREE.MeshStandardMaterial({ color: 0xf0e4c9, roughness: 0.85 });
+const fencePostWood = new THREE.MeshStandardMaterial({ color: 0x79502f, roughness: 0.9 });
+const fenceRailMat = new THREE.MeshStandardMaterial({ color: 0xe0d1b4, roughness: 0.9 });
+
+function addFencePost(x, z) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.45, 0.22), fencePostWood);
+    post.position.set(x, 0.725, z);
+    post.castShadow = true;
+    scene.add(post);
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.2, 4), fenceWood);
+    cap.position.set(x, 1.55, z);
+    cap.rotation.y = Math.PI / 4;
+    cap.castShadow = true;
+    scene.add(cap);
+}
+
+function addFenceRun(x1, z1, x2, z2, spacing = 0.55) {
+    const dx = x2 - x1, dz = z2 - z1;
+    const length = Math.hypot(dx, dz);
+    const angle = Math.atan2(dz, dx);
+    const midX = (x1 + x2) / 2, midZ = (z1 + z2) / 2;
+    for (const y of [0.48, 1.05]) {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(length, 0.12, 0.14), fenceRailMat);
+        rail.position.set(midX, y, midZ);
+        rail.rotation.y = -angle;
+        rail.castShadow = true;
+        scene.add(rail);
+    }
+    const count = Math.floor(length / spacing);
+    for (let i = 0; i <= count; i++) {
+        const t = i / count;
+        const x = x1 + dx * t, z = z1 + dz * t;
+        const picket = new THREE.Mesh(new THREE.BoxGeometry(0.10, 1.05, 0.12), fenceWood);
+        picket.position.set(x, 0.525, z);
+        picket.rotation.y = -angle;
+        picket.castShadow = true;
+        scene.add(picket);
+        const tip = new THREE.Mesh(new THREE.ConeGeometry(0.085, 0.16, 4), fenceWood);
+        tip.position.set(x, 1.13, z);
+        tip.rotation.y = Math.PI / 4 - angle;
+        tip.castShadow = true;
+        scene.add(tip);
+    }
+}
+
+// Back and side fences.
+addFenceRun(-10, -10, 10, -10);
+addFenceRun(-10, -10, -10, 10);
+addFenceRun(10, -10, 10, 10);
+// Front fence leaves a 2.6 m opening for the gate.
+addFenceRun(-10, 10, -1.3, 10);
+addFenceRun(1.3, 10, 10, 10);
+// Strong corner and gate posts.
+[[-10,-10], [10,-10], [-10,10], [10,10], [-1.3,10], [1.3,10]].forEach(p => addFencePost(p[0], p[1]));
+
+// Gate pivots at its left edge and swings inward into the garden.
+const gardenGate = new THREE.Group();
+gardenGate.position.set(-1.3, 0, 10);
+scene.add(gardenGate);
+gardenGate.userData.open = false;
+gardenGate.userData.target = 0;
+gardenGate.userData.toggle = () => {
+    gardenGate.userData.open = !gardenGate.userData.open;
+    gardenGate.userData.target = gardenGate.userData.open ? Math.PI / 2 : 0;
+};
+const gatePanel = new THREE.Group();
+gardenGate.add(gatePanel);
+const gateWidth = 2.6;
+for (const y of [0.48, 1.05]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(gateWidth, 0.13, 0.15), fenceRailMat);
+    rail.position.set(gateWidth / 2, y, 0);
+    gatePanel.add(rail);
+}
+for (let i = 0; i <= 6; i++) {
+    const x = 0.12 + i * 0.39;
+    const picket = new THREE.Mesh(new THREE.BoxGeometry(0.11, 1.05, 0.13), fenceWood);
+    picket.position.set(x, 0.525, 0);
+    gatePanel.add(picket);
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.17, 4), fenceWood);
+    tip.position.set(x, 1.13, 0);
+    tip.rotation.y = Math.PI / 4;
+    gatePanel.add(tip);
+}
+gatePanel.traverse(o => { if (o.isMesh) o.castShadow = true; });
+
+// Classic American rural mailbox on a wooden post, with its raised red signal flag.
+const mailboxPost = new THREE.Mesh(new THREE.BoxGeometry(0.14, 1.35, 0.14), fencePostWood);
+mailboxPost.position.set(2.15, 0.675, 9.65);
+mailboxPost.castShadow = true;
+scene.add(mailboxPost);
+
+const mailboxMat = new THREE.MeshStandardMaterial({
+    color: 0x263d55, metalness: 0.28, roughness: 0.42
+});
+const mailboxDark = new THREE.MeshStandardMaterial({ color: 0x17232e, roughness: 0.7 });
+const mailboxRed = new THREE.MeshStandardMaterial({
+    color: 0xd71920, metalness: 0.18, roughness: 0.4
+});
+
+// Rounded horizontal body with rounded end caps.
+const mailboxBody = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.235, 0.235, 0.72, 24),
+    mailboxMat
+);
+mailboxBody.rotation.z = Math.PI / 2;
+mailboxBody.position.set(2.15, 1.48, 9.65);
+mailboxBody.castShadow = true;
+scene.add(mailboxBody);
+
+for (const side of [-1, 1]) {
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.235, 20, 16), mailboxMat);
+    cap.position.set(2.15 + side * 0.36, 1.48, 9.65);
+    cap.castShadow = true;
+    scene.add(cap);
+}
+
+const mailboxDoor = new THREE.Mesh(
+    new THREE.BoxGeometry(0.48, 0.018, 0.018),
+    mailboxDark
+);
+mailboxDoor.position.set(2.15, 1.39, 9.89);
+scene.add(mailboxDoor);
+
+// Red side-mounted flag with a visible upright arm and signal paddle.
+const flagHinge = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.045, 0.045, 0.09, 12),
+    mailboxDark
+);
+flagHinge.rotation.z = Math.PI / 2;
+flagHinge.position.set(1.78, 1.49, 9.65);
+scene.add(flagHinge);
+
+const flagArm = new THREE.Mesh(
+    new THREE.BoxGeometry(0.045, 0.38, 0.045),
+    mailboxRed
+);
+flagArm.position.set(1.78, 1.69, 9.65);
+flagArm.rotation.z = -0.12;
+flagArm.castShadow = true;
+scene.add(flagArm);
+
+const flagFin = new THREE.Mesh(
+    new THREE.BoxGeometry(0.22, 0.13, 0.035),
+    mailboxRed
+);
+flagFin.position.set(1.89, 1.84, 9.65);
+flagFin.castShadow = true;
+scene.add(flagFin);
+
+
+// --------------------------------------------------
+// PATH STONES
+// --------------------------------------------------
+
+const stoneMat = new THREE.MeshStandardMaterial({
+    color: 0xbab7aa
+});
+
+// Pedestrian walkway from the front door to the entrance gate.
+for (let i = 0; i < 8; i++) {
+    const stone = new THREE.Mesh(
+        new THREE.BoxGeometry(1.35, 0.12, 0.72),
+        stoneMat
+    );
+    stone.position.set(0, 0.035, 3.65 + i * 0.82);
+    stone.rotation.y = (i % 2 === 0 ? -0.025 : 0.025);
+    stone.receiveShadow = true;
+    stone.castShadow = true;
+    scene.add(stone);
+}
+
+// --------------------------------------------------
+// CLICK INTERACTION
+// --------------------------------------------------
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+renderer.domElement.addEventListener('pointerdown', (event) => {
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+
+    const hits = raycaster.intersectObjects(scene.children, true);
+
+    if (hits.length > 0) {
+        let object = hits[0].object;
+
+        while (object) {
+            if (object.userData && object.userData.toggle) {
+                object.userData.toggle();
+                break;
+            }
+            object = object.parent;
+        }
+    }
+});
+
+// --------------------------------------------------
+// ANIMATION
+// --------------------------------------------------
+
+const animatedObjects = [doorPivot];
+
+scene.traverse((object) => {
+    if (object.userData && object.userData.toggle) {
+        if (!animatedObjects.includes(object)) {
+            animatedObjects.push(object);
+        }
+    }
+});
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    for (const object of animatedObjects) {
+        const target = object.userData.target ?? 0;
+        object.rotation.y = THREE.MathUtils.lerp(
+            object.rotation.y,
+            target,
+            0.12
+        );
+    }
+
+    controls.update();
+    renderer.render(scene, camera);
+}
+
+animate();
+
+// --------------------------------------------------
+// RESIZE
+// --------------------------------------------------
+
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Show JavaScript errors on screen
+window.addEventListener('error', (event) => {
+    const errorBox = document.getElementById('error');
+    errorBox.style.display = 'block';
+    errorBox.textContent = event.message;
+});
+
+</script>
+</body>
+</html>

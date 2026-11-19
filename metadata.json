@@ -1,0 +1,6 @@
+{
+  "name": "PlanForge 3D",
+  "description": "Interactive 2D-to-3D house plan drafter with wall extrusion, door and window cutouts, eye-level walkthrough, and 3D-print STL/OBJ export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
